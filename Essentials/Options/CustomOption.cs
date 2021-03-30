@@ -44,7 +44,7 @@ namespace Essentials.Options
         /// <summary>
         /// Enables debug logging messages.
         /// </summary>
-        public static bool Debug { get; set; } = false;
+        public static bool Debug { get; set; } = true;
 
         /// <summary>
         /// The size of lobby options text, game default is 0.65F, Essentials default is 0.5F.
@@ -63,14 +63,9 @@ namespace Essentials.Options
         public static float LobbyTextRowHeight { get; set; } = 0.081F;
 
         /// <summary>
-        /// Clear the game's default settings list before listing custom settings in the lobby.
-        /// </summary>
-        public static bool ClearDefaultLobbyText { get; set; } = false;
-
-        /// <summary>
         /// The ID of the plugin that created the option.
         /// </summary>
-        public readonly string PluginID;
+        public string PluginID;
         /// <summary>
         /// The key value used in the config to store the option value (when SaveValue is true).
         /// </summary>
@@ -93,7 +88,7 @@ namespace Essentials.Options
         /// <summary>
         /// Specifies whether this option saves it's value to be reloaded when the game is launched again (only applies for the lobby host).
         /// </summary>
-        protected readonly bool SaveValue;
+        public readonly bool SaveValue;
         /// <summary>
         /// The option type.
         /// See <see cref="CustomOptionType"/>.
@@ -156,11 +151,11 @@ namespace Essentials.Options
 
             if (value == null) throw new ArgumentNullException(nameof(value), "Value cannot be null");
 
-            PluginID = PluginHelpers.GetCallingPluginId();
+            PluginID = PluginHelpers.GetCallingPluginId() + "0";
             ConfigID = id;
 
             //string Id = ID = $"{nameof(CustomOption)}_{PluginID}_{id}";
-            string Id = ID = $"{PluginID}_{id}";
+            ID = id;
             Name = name;
 
             SaveValue = saveValue;
@@ -171,7 +166,7 @@ namespace Essentials.Options
             int i = 0;
             while (Options.Any(option => option.ID.Equals(ID, StringComparison.Ordinal)))
             {
-                ID = $"{Id}_{++i}";
+                ID = $"{id}_{++i}";
                 ConfigID = $"{id}_{i}";
             }
 
@@ -395,7 +390,7 @@ namespace Essentials.Options
                 
                 if (option.GameSetting is KeyValueOption kv)
                 {
-                    if (report && AmongUsClient.Instance?.AmHost == true && PlayerControl.LocalPlayer)
+                    if (report && AmongUsClient.Instance && PlayerControl.LocalPlayer && AmongUsClient.Instance.AmHost)
                     {
                         Rpc.Instance.Send(new Rpc.Data(option));
 
@@ -454,7 +449,7 @@ namespace Essentials.Options
         {
             if (value?.GetType() != Value?.GetType() || Value == value) return; // Refuse value updates that don't match the option type
 
-            if (raiseEvents && OnValueChanged != null && AmongUsClient.Instance?.AmHost == true && PlayerControl.LocalPlayer)
+            if (raiseEvents && OnValueChanged != null && AmongUsClient.Instance && PlayerControl.LocalPlayer && AmongUsClient.Instance.AmHost)
             {
                 object lastValue = value;
 
@@ -483,7 +478,7 @@ namespace Essentials.Options
 
             Value = value;
 
-            if (GameSetting != null && AmongUsClient.Instance?.AmHost == true && PlayerControl.LocalPlayer) Rpc.Send(new (string, CustomOptionType, object)[] { this });//Rpc.Send(this);
+            if (GameSetting != null && AmongUsClient.Instance && PlayerControl.LocalPlayer && AmongUsClient.Instance.AmHost) Rpc.Instance.Send(new Rpc.Data(this));
 
             try
             {
@@ -498,7 +493,7 @@ namespace Essentials.Options
                 {
                     float newValue = (float)Value;
 
-                    number.Value = number./*oldValue*/Field_3 = newValue;
+                    number.Value = number.Field_3 = newValue;
                     number.ValueText.Text = ToString();
                 }
                 else if (GameSetting is StringOption str)
@@ -521,21 +516,15 @@ namespace Essentials.Options
                 EssentialsPlugin.Logger.LogWarning($"Failed to update game setting value for option \"{Name}\": {e}");
             }
 
-            if (raiseEvents) ValueChanged?.SafeInvoke(this, ValueChangedEventArgs(value, Value), nameof(ValueChanged));
+            if (raiseEvents) ValueChanged?.SafeInvoke(this, ValueChangedEventArgs(value, Value));
+            /*{
+                OptionValueChangedEventArgs args = ValueChangedEventArgs(value, Value);
+                foreach (EventHandler<OptionValueChangedEventArgs> handler in ValueChanged.GetInvocationList()) handler(this, args);
+            }*/
 
             try
             {
-                if (GameSetting != null)
-                {
-                    //Object.FindObjectOfType<GameOptionsMenu>()?.Method_16(); // RefreshChildren();
-                    GameOptionsMenu optionsMenu = Object.FindObjectOfType<GameOptionsMenu>();
-                    for (int i = 0; i < optionsMenu.Children.Length; i++)
-                    {
-                        OptionBehaviour optionBehaviour = optionsMenu.Children[i];
-                        optionBehaviour.enabled = false;
-                        optionBehaviour.enabled = true;
-                    }
-                }
+                if (GameSetting != null) Object.FindObjectOfType<GameOptionsMenu>()?.Method_16(); // RefreshChildren();
             }
             catch
             {
@@ -584,7 +573,7 @@ namespace Essentials.Options
         /// <remarks>
         /// Can be null when <see cref="CustomOption.SaveValue"/> is false.
         /// </remarks>
-        public readonly ConfigEntry<bool> ConfigEntry;
+        public ConfigEntry<bool> ConfigEntry;
 
         /// <summary>
         /// Adds a toggle option.
@@ -597,7 +586,7 @@ namespace Essentials.Options
         {
             ValueChanged += (sender, args) =>
             {
-                if (GameSetting is ToggleOption && AmongUsClient.Instance?.AmHost == true && PlayerControl.LocalPlayer && ConfigEntry != null) ConfigEntry.Value = (bool)Value;
+                if (GameSetting is ToggleOption && AmongUsClient.Instance && PlayerControl.LocalPlayer && AmongUsClient.Instance.AmHost && ConfigEntry != null) ConfigEntry.Value = (bool)Value;
             };
 
             ConfigEntry = saveValue ? EssentialsPlugin.Instance.Config.Bind(PluginID, ConfigID, (bool)DefaultValue) : null;
@@ -632,7 +621,7 @@ namespace Essentials.Options
             SetValue(!GetValue());
         }
 
-        private void SetValue(bool value, bool raiseEvents)
+        public void SetValue(bool value, bool raiseEvents)
         {
             base.SetValue(value, raiseEvents);
         }
@@ -676,7 +665,7 @@ namespace Essentials.Options
         /// <remarks>
         /// Can be null when <see cref="CustomOption.SaveValue"/> is false.
         /// </remarks>
-        public readonly ConfigEntry<float> ConfigEntry;
+        public ConfigEntry<float> ConfigEntry;
 
         /// <summary>
         /// A "modifier" string format, simply appending 'x' after the value.
@@ -719,7 +708,7 @@ namespace Essentials.Options
 
             ValueChanged += (sender, args) =>
             {
-                if (GameSetting is NumberOption && AmongUsClient.Instance?.AmHost == true && PlayerControl.LocalPlayer && ConfigEntry != null) ConfigEntry.Value = (float)Value;
+                if (GameSetting is NumberOption && AmongUsClient.Instance && PlayerControl.LocalPlayer && AmongUsClient.Instance.AmHost && ConfigEntry != null) ConfigEntry.Value = (float)Value;
             };
 
             ConfigEntry = saveValue ? EssentialsPlugin.Instance.Config.Bind(PluginID, ConfigID, (float)DefaultValue) : null;
@@ -745,7 +734,7 @@ namespace Essentials.Options
             number.TitleText.Text = Name;
             number.ValidRange = new FloatRange(Min, Max);
             number.Increment = Increment;
-            number.Value = number./*oldValue*/Field_3 = GetValue();
+            number.Value = number.Field_3 = GetValue();
             number.ValueText.Text = ToString();
         }
 
@@ -765,7 +754,7 @@ namespace Essentials.Options
             SetValue(GetValue() - Increment);
         }
 
-        private void SetValue(float value, bool raiseEvents)
+        public void SetValue(float value, bool raiseEvents)
         {
             value = Mathf.Clamp(value, Min, Max);
 
@@ -811,7 +800,7 @@ namespace Essentials.Options
         /// <remarks>
         /// Can be null when <see cref="CustomOption.SaveValue"/> is false.
         /// </remarks>
-        public readonly ConfigEntry<int> ConfigEntry;
+        public ConfigEntry<int> ConfigEntry;
 
         /// <summary>
         /// The text values the option can present.
@@ -828,7 +817,7 @@ namespace Essentials.Options
 
             ValueChanged += (sender, args) =>
             {
-                if (GameSetting is StringOption && AmongUsClient.Instance?.AmHost == true && PlayerControl.LocalPlayer && ConfigEntry != null) ConfigEntry.Value = (int)Value;
+                if (GameSetting is StringOption && AmongUsClient.Instance && PlayerControl.LocalPlayer && AmongUsClient.Instance.AmHost && ConfigEntry != null) ConfigEntry.Value = (int)Value;
             };
 
             ConfigEntry = saveValue ? EssentialsPlugin.Instance.Config.Bind(PluginID, ConfigID, (int)DefaultValue) : null;
@@ -878,7 +867,7 @@ namespace Essentials.Options
             SetValue(next);
         }
 
-        private void SetValue(int value, bool raiseEvents)
+        public void SetValue(int value, bool raiseEvents)
         {
             if (value < 0 || value >= Values.Length) value = (int)DefaultValue;
 

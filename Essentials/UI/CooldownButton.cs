@@ -1,5 +1,6 @@
 using Essentials.Extensions;
 using Reactor.Extensions;
+using Reactor.Unstrip;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -27,11 +28,6 @@ namespace Essentials.UI
 
         public Vector2 PositionOffset { get; private set; }
 
-        private float _initialCooldownDuration = 0F;
-        /// <summary>
-        /// The button's initial (match start) cooldown duration. Set to 0 for no cooldown.
-        /// </summary>
-        public float InitialCooldownDuration { get { return _initialCooldownDuration; } set { _initialCooldownDuration = Mathf.Max(0F, value); } }
         private float _cooldownDuration = 0F;
         /// <summary>
         /// The button's cooldown duration. Set to 0 for no cooldown.
@@ -66,7 +62,6 @@ namespace Essentials.UI
         /// </summary>
         /// <remarks>
         /// The button cannot be clicked.
-        /// <para>Cooldown does not decrease when false, but effect duration does.</para>
         /// </remarks>
         public bool Visible { get; set; } = true;
         /// <summary>
@@ -89,7 +84,7 @@ namespace Essentials.UI
         /// </summary>
         public event EventHandler<CancelEventArgs> OnClick;
         /// <summary>
-        /// Raised every hud frame, can be used to control the button's state.
+        /// Raised every hud frame, can be used to control the button's state. Not called when <see cref="HudVisible"/> is false.
         /// </summary>
         public event EventHandler<EventArgs> OnUpdate;
         /// <summary>
@@ -110,21 +105,18 @@ namespace Essentials.UI
         public event EventHandler<EventArgs> OnCooldownEnd;
 
         private byte[] ImageData;
-        private Sprite ButtonSprite;
 
         private bool IsDisposed;
 
         /// <summary>
         /// Call in Plugin.Load
         /// </summary>
-        public CooldownButton(byte[] imageData, Vector2 positionOffset, float cooldown = 0F, float effectDuration = 0F, float initialCooldown = 0F)
+        public CooldownButton(byte[] imageData, Vector2 positionOffset, float cooldown = 0F, float effectDuration = 0F)
         {
             PositionOffset = positionOffset;
-            CooldownDuration = cooldown;
             EffectDuration = effectDuration;
-            InitialCooldownDuration = initialCooldown;
-
-            CooldownTime = InitialCooldownDuration;
+            CooldownDuration = cooldown;
+            CooldownTime = CooldownDuration;
 
             Buttons.Add(this);
 
@@ -136,8 +128,7 @@ namespace Essentials.UI
         /// <summary>
         /// Call in Plugin.Load
         /// </summary>
-        public CooldownButton(string imageEmbededResourcePath, Vector2 positionOffset, float cooldown = 0F, float effectDuration = 0F, float initialCooldown = 0F) :
-            this(GetBytesFromEmbeddedResource(Assembly.GetCallingAssembly(), imageEmbededResourcePath), positionOffset, cooldown, effectDuration, initialCooldown)
+        public CooldownButton(string imageEmbededResourcePath, Vector2 positionOffset, float cooldown = 0F, float effectDuration = 0F) : this(GetBytesFromEmbeddedResource(Assembly.GetCallingAssembly(), imageEmbededResourcePath), positionOffset, cooldown, effectDuration)
         {
         }
 
@@ -176,7 +167,7 @@ namespace Essentials.UI
             Texture2D tex = GUIExtensions.CreateEmptyTexture();
             ImageConversion.LoadImage(tex, ImageData, false);
 
-            KillButtonManager.renderer.sprite = ButtonSprite = tex.CreateSprite();
+            KillButtonManager.renderer.sprite = GUIExtensions.CreateSprite(tex);
 
             PassiveButton button = KillButtonManager.GetComponent<PassiveButton>();
             button.OnClick.RemoveAllListeners();
@@ -185,7 +176,7 @@ namespace Essentials.UI
                 if (!IsUsable) return;
 
                 CancelEventArgs args = new CancelEventArgs();
-                OnClick?.SafeInvoke(this, args, nameof(OnClick));
+                OnClick?.SafeInvoke(this, args);
 
                 if (args.Cancel) return; // Click was cancelled.
 
@@ -213,7 +204,7 @@ namespace Essentials.UI
 
             KillButtonManager.TimerText.Color = new Color(0F, 0.8F, 0F);
 
-            if (!wasEffectActive) EffectStart?.SafeInvoke(this, EventArgs.Empty, nameof(EffectStart));
+            if (!wasEffectActive) EffectStart?.SafeInvoke(this, EventArgs.Empty);
         }
 
         /// <summary>
@@ -228,7 +219,7 @@ namespace Essentials.UI
 
                 KillButtonManager.TimerText.Color = Palette.EnabledColor;
 
-                EffectEnd?.SafeInvoke(this, EventArgs.Empty, nameof(EffectEnd));
+                EffectEnd?.SafeInvoke(this, EventArgs.Empty);
             }
 
             if (startCooldown) ApplyCooldown();
@@ -239,11 +230,9 @@ namespace Essentials.UI
         {
             if (!GameData.Instance || PlayerControl.LocalPlayer?.Data == null || KillButtonManager == null)
             {
-                //EndEffect(false);
-                IsEffectActive = false;
+                EndEffect(false);
 
-                //ApplyCooldown(0F);
-                CooldownTime = 0F;
+                ApplyCooldown(0F);
 
                 return;
             }
@@ -258,9 +247,6 @@ namespace Essentials.UI
                 KillButtonManager.transform.localPosition = vector;
             }
 
-            if (ButtonSprite) KillButtonManager.renderer.sprite = ButtonSprite;
-
-#warning change canmove
             if (IsCoolingDown && (IsEffectActive || Visible && PlayerControl.LocalPlayer.CanMove))
             {
                 CooldownTime -= Time.deltaTime;
@@ -273,12 +259,12 @@ namespace Essentials.UI
                     }
                     else
                     {
-                        OnCooldownEnd?.SafeInvoke(this, EventArgs.Empty, nameof(OnCooldownEnd));
+                        OnCooldownEnd?.SafeInvoke(this, EventArgs.Empty);
                     }
                 }
             }
 
-            OnUpdate?.SafeInvoke(this, EventArgs.Empty, nameof(OnUpdate)); // Implementing code can control visibility and appearance.
+            if (HudVisible) OnUpdate?.SafeInvoke(this, EventArgs.Empty); // Implementing code can control visibility and appearance.
 
             if (IsDisposed) return; // Dispose may be called during OnUpdate, resulting exceptions.
 
@@ -311,11 +297,11 @@ namespace Essentials.UI
 
             if (!wasCoolingDown && IsCoolingDown)
             {
-                OnCooldownStart?.SafeInvoke(this, EventArgs.Empty, nameof(OnCooldownStart));
+                OnCooldownStart?.SafeInvoke(this, EventArgs.Empty);
             }
             else if (wasCoolingDown && !IsCoolingDown)
             {
-                OnCooldownEnd?.SafeInvoke(this, EventArgs.Empty, nameof(OnCooldownEnd));
+                OnCooldownEnd?.SafeInvoke(this, EventArgs.Empty);
             }
         }
 

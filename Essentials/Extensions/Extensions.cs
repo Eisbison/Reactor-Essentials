@@ -26,24 +26,7 @@ namespace Essentials.Extensions
         /// <summary>
         /// Safely invokes event handlers by catching exceptions. Should mainly be used in game patches to prevent an exception from causing the game to hang.
         /// </summary>
-        /// <typeparam name="T">Event arguments type</typeparam>
-        /// <param name="eventHandler">Event to invoke</param>
-        /// <param name="sender">Object invoking the event</param>
-        /// <param name="args">Event arguments</param>
         public static void SafeInvoke<T>(this EventHandler<T> eventHandler, object sender, T args) where T : EventArgs
-        {
-            SafeInvoke(eventHandler, sender, args, eventHandler.GetType().Name);
-        }
-
-        /// <summary>
-        /// Safely invokes event handlers by catching exceptions. Should mainly be used in game patches to prevent an exception from causing the game to hang.
-        /// </summary>
-        /// <typeparam name="T">Event arguments type</typeparam>
-        /// <param name="eventHandler">Event to invoke</param>
-        /// <param name="sender">Object invoking the event</param>
-        /// <param name="args">Event arguments</param>
-        /// <param name="eventName">Event name (logged in errors)</param>
-        public static void SafeInvoke<T>(this EventHandler<T> eventHandler, object sender, T args, string eventName) where T : EventArgs
         {
             if (eventHandler == null) return;
 
@@ -56,14 +39,9 @@ namespace Essentials.Extensions
                 }
                 catch (Exception e)
                 {
-                    EssentialsPlugin.Logger.LogWarning($"Exception in event handler index {i} for event \"{eventName}\":\n{e}");
+                    EssentialsPlugin.Logger.LogWarning($"Exception in event handler index {i} for event type {eventHandler.GetType()}: {e}");
                 }
             }
-        }
-
-        public static string GetText(this StringNames str, params object[] parts)
-        {
-            return DestroyableSingleton<TranslationController>.Instance?.GetString(str, (Il2CppReferenceArray<Il2CppSystem.Object>)parts) ?? "STRMISS";
         }
     }
 }

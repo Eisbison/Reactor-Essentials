@@ -1,7 +1,6 @@
 ﻿using BepInEx;
 using BepInEx.IL2CPP;
 using BepInEx.Logging;
-using Essentials.Options;
 using HarmonyLib;
 using Reactor;
 using Reactor.Patches;
@@ -19,18 +18,19 @@ namespace Essentials
 
         public static EssentialsPlugin Instance { get { return PluginSingleton<EssentialsPlugin>.Instance; } }
 
-        internal static ManualLogSource Logger { get { return Instance.Log; } }
+        private ManualLogSource logger;
+        internal static ManualLogSource Logger { get { return Instance.logger; } }
 
         internal Harmony Harmony { get; } = new Harmony(Id);
 
         public override void Load()
         {
-            PluginSingleton<EssentialsPlugin>.Instance = this;
+            logger = Log;
 
             Harmony.PatchAll();
 
             RegisterInIl2CppAttribute.Register();
-            //RegisterCustomRpcAttribute.Register(this);
+            RegisterCustomRpcAttribute.Register(this);
 
             ReactorVersionShower.TextUpdated += (text) =>
             {
