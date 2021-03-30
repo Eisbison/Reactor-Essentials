@@ -1,0 +1,1 @@
+This fork from [DorCoMaNdO/Reactor-Essentials](https://github.com/DorCoMaNdO/Reactor-Essentials) adapts it to the needs of our [TheOtherRoles](https://github.com/Eisbison/TheOtherRoles) mod. All changes here can be found on the [feature/TheOtherRoles-Adaption](https://github.com/Eisbison/Reactor-Essentials/tree/feature/TheOtherRoles-Adaption) branch.
